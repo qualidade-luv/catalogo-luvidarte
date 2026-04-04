@@ -168,16 +168,22 @@ footer {
 """, unsafe_allow_html=True)
 
 # ============================================
-# FUNÇÃO PARA GERENCIAR COOKIES (VERSÃO CORRIGIDA)
+# FUNÇÃO PARA GERENCIAR COOKIES (VERSÃO CORRIGIDA COM MENSAGEM)
 # ============================================
 def init_cookie_consent():
     """Inicializa o sistema de consentimento de cookies"""
     if 'cookie_consent' not in st.session_state:
         st.session_state.cookie_consent = None
+    if 'mensagem_visivel' not in st.session_state:
+        st.session_state.mensagem_visivel = True
 
 def set_cookie_consent(consent):
     """Define o consentimento de cookies"""
     st.session_state.cookie_consent = consent
+
+def fechar_mensagem_informativa():
+    """Fecha a mensagem informativa"""
+    st.session_state.mensagem_visivel = False
 
 def show_cookie_banner():
     """Exibe o banner de cookies com botões Streamlit"""
@@ -292,6 +298,116 @@ def show_cookie_banner():
         
         # Parar execução até o usuário escolher
         st.stop()
+    
+    # Exibir mensagem informativa após aceitar os cookies
+    elif st.session_state.cookie_consent == True and st.session_state.mensagem_visivel:
+        # CSS para a mensagem profissional
+        st.markdown("""
+        <style>
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .info-message {
+            background: linear-gradient(135deg, #FFF9E6 0%, #FFF4D6 100%);
+            border-left: 4px solid #C9A03D;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            animation: slideDown 0.5s ease-out;
+        }
+        
+        .info-message-title {
+            color: #C9A03D;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .info-message-text {
+            color: #5a5a5a;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        
+        .info-message-contact {
+            background-color: #C9A03D20;
+            border-radius: 6px;
+            padding: 10px 15px;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .info-message-contact span {
+            color: #C9A03D;
+            font-weight: 500;
+        }
+        
+        .info-message-contact a {
+            color: #25D366;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .info-message-contact a:hover {
+            text-decoration: underline;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Usando o container do Streamlit para a mensagem com botão funcional
+        with st.container():
+            col_msg, col_btn = st.columns([20, 1])
+            
+            with col_msg:
+                st.markdown("""
+                <div class="info-message">
+                    <div class="info-message-title">
+                        <span>📋</span> Informação Importante
+                    </div>
+                    <div class="info-message-text">
+                        <strong>Prezado(a) cliente,</strong><br>
+                        Os valores, especificações técnicas, medidas e disponibilidade dos produtos apresentados neste catálogo 
+                        estão sujeitos a alterações sem aviso prévio, conforme política comercial da Luvidarte. 
+                        Recomendamos sempre confirmar as informações atualizadas diretamente com nossa equipe de vendas.
+                    </div>
+                    <div class="info-message-contact">
+                        <span>📞 Para mais informações, entre em contato conosco:</span>
+                        <div>
+                            <a href="https://wa.me/551146769000?text=Olá! Gostaria de confirmar informações sobre os produtos do catálogo" target="_blank">
+                                💬 WhatsApp (11) 4676-9000
+                            </a>
+                            <span style="margin: 0 8px">|</span>
+                            <span>📧 sac@luvidarte.com.br</span>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_btn:
+                # Botão "X" funcional usando Streamlit
+                if st.button("✖️", key="close_info_message", help="Fechar mensagem"):
+                    fechar_mensagem_informativa()
+                    st.rerun()
 
 # ============================================
 # INICIALIZAR E MOSTRAR BANNER DE COOKIES
@@ -314,6 +430,31 @@ CORES = {
     "fundo_banner": "#FFFFFF",
     "borda_banner": "#E0E0E0"
 }
+
+# ============================================
+# FUNÇÃO PARA FORMATAR ML
+# ============================================
+def formatar_ml(valor):
+    """Formata valores de ml com separador de milhar e 3 casas decimais"""
+    if pd.isna(valor) or valor == 0:
+        return None
+    
+    # Formatar com separador de milhar e 3 casas decimais
+    # Ex: 2625 -> 2.625
+    # Ex: 750 -> 750,000
+    valor_formatado = f"{valor:,.3f}"
+    
+    # Converter formato americano para brasileiro
+    # Troca vírgula por ponto e ponto por vírgula
+    partes = valor_formatado.split('.')
+    if len(partes) > 1:
+        # Separador de milhar: ponto
+        inteiro = partes[0].replace(',', '.')
+        # Casas decimais: vírgula
+        decimal = partes[1]
+        return f"{inteiro},{decimal}"
+    else:
+        return valor_formatado.replace(',', '.')
 
 # ============================================
 # FUNÇÃO PARA CARREGAR O LOGO
@@ -702,8 +843,13 @@ else:
             else:
                 st.image("https://via.placeholder.com/300x200?text=Sem+Imagem", use_container_width=True)
             
+            # ============================================
+            # EXIBIR ML COM FORMATAÇÃO DE MILHAR E 3 CASAS DECIMAIS
+            # ============================================
             if pd.notna(produto.get('ml')) and produto['ml'] > 0:
-                st.markdown(f"📏 **{produto['ml']:.0f} ml**")
+                ml_formatado = formatar_ml(produto['ml'])
+                if ml_formatado:
+                    st.markdown(f"📏 **{ml_formatado} ml**")
             
             if pd.notna(produto.get('Medidas')):
                 st.markdown(f"📐 {produto['Medidas']}")
