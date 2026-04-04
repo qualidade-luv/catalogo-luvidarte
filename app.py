@@ -6,6 +6,131 @@ from PIL import Image
 import requests
 from io import BytesIO
 import base64
+from datetime import datetime
+import time
+
+# ============================================
+# FUNÇÃO PARA GERENCIAR COOKIES (VERSÃO SIMPLES E FUNCIONAL)
+# ============================================
+def init_cookie_consent():
+    """Inicializa o sistema de consentimento de cookies"""
+    if 'cookie_consent' not in st.session_state:
+        # Verificar se já existe no localStorage via query params
+        st.session_state.cookie_consent = None
+
+def set_cookie_consent(consent):
+    """Define o consentimento de cookies"""
+    st.session_state.cookie_consent = consent
+
+def show_cookie_banner():
+    """Exibe o banner de cookies com botões Streamlit"""
+    if st.session_state.cookie_consent is None:
+        # Verificar se veio alguma escolha via query params
+        if 'cookie_choice' in st.query_params:
+            choice = st.query_params['cookie_choice']
+            if choice == 'accepted':
+                set_cookie_consent(True)
+                st.query_params.clear()
+                st.rerun()
+            elif choice == 'declined':
+                set_cookie_consent(False)
+                st.query_params.clear()
+                st.rerun()
+        
+        # CSS para o banner
+        st.markdown("""
+        <style>
+        .cookie-banner-simple {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            padding: 25px 30px;
+            z-index: 9999;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            border-top: 3px solid #C9A03D;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        .cookie-content-simple {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .cookie-text-simple {
+            flex: 2;
+            min-width: 250px;
+        }
+        
+        .cookie-text-simple h3 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            color: #C9A03D;
+        }
+        
+        .cookie-text-simple p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #e0e0e0;
+        }
+        
+        .cookie-buttons-simple {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .cookie-content-simple {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .cookie-buttons-simple {
+                justify-content: center;
+            }
+        }
+        </style>
+        
+        <div class="cookie-banner-simple">
+            <div class="cookie-content-simple">
+                <div class="cookie-text-simple">
+                    <h3>🍪 Nós usamos cookies</h3>
+                    <p>Utilizamos cookies para melhorar sua experiência de navegação, 
+                    analisar o tráfego do site e personalizar conteúdo.</p>
+                </div>
+                <div class="cookie-buttons-simple">
+                    <!-- Botões serão renderizados abaixo -->
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Criar colunas para os botões
+        col1, col2, col3, col4 = st.columns([1, 2, 2, 1])
+        
+        with col2:
+            if st.button("✅ Aceitar Cookies", key="accept_btn", use_container_width=True):
+                # Salvar escolha e recarregar
+                st.query_params["cookie_choice"] = "accepted"
+                st.rerun()
+        
+        with col3:
+            if st.button("❌ Recusar Cookies", key="decline_btn", use_container_width=True):
+                # Salvar escolha e recarregar
+                st.query_params["cookie_choice"] = "declined"
+                st.rerun()
+        
+        # Parar execução até o usuário escolher
+        st.stop()
 
 # ============================================
 # CONFIGURAÇÃO DA PÁGINA (com favicon)
@@ -22,6 +147,9 @@ def carregar_logo_favicon():
         pass
     return None
 
+# Inicializar sistema de cookies
+init_cookie_consent()
+
 favicon = carregar_logo_favicon()
 if favicon:
     st.set_page_config(
@@ -36,20 +164,23 @@ else:
         layout="wide"
     )
 
+# Mostrar banner de cookies
+show_cookie_banner()
+
 # ============================================
 # PALETA DE CORES
 # ============================================
 CORES = {
-    "fundo_pagina": "#F7F7F7",        # Fundo cinza claro
-    "fundo_card": "#FFFFFF",          # Fundo branco dos cards
-    "preto": "#000000",               # Preto para títulos principais
-    "cinza_texto": "#333333",         # Cinza escuro para textos
-    "cinza_claro": "#666666",         # Cinza claro para textos secundários
-    "destaque_preco": "#D35400",      # Laranja/terracota para preços
-    "dourado": "#C9A03D",            # Dourado para detalhes
-    "borda_card": "#E0E0E0",          # Borda suave para cards
-    "fundo_banner": "#FFFFFF",        # Fundo branco para o banner
-    "borda_banner": "#E0E0E0"         # Borda do banner
+    "fundo_pagina": "#F7F7F7",
+    "fundo_card": "#FFFFFF",
+    "preto": "#000000",
+    "cinza_texto": "#333333",
+    "cinza_claro": "#666666",
+    "destaque_preco": "#D35400",
+    "dourado": "#C9A03D",
+    "borda_card": "#E0E0E0",
+    "fundo_banner": "#FFFFFF",
+    "borda_banner": "#E0E0E0"
 }
 
 # ============================================
@@ -93,17 +224,14 @@ def converter_moeda_para_numero(valor):
 # ============================================
 st.markdown(f"""
     <style>
-    /* Fundo principal */
     .stApp {{
         background-color: {CORES["fundo_pagina"]};
     }}
     
-    /* Sidebar - mesma cor do fundo */
     .css-1d391kg, .css-12oz5g7, section[data-testid="stSidebar"] {{
         background-color: {CORES["fundo_pagina"]};
     }}
     
-    /* Banner principal - fundo claro, letras pretas */
     .main-banner {{
         background-color: {CORES["fundo_banner"]};
         border-radius: 16px;
@@ -150,7 +278,6 @@ st.markdown(f"""
         color: {CORES["cinza_texto"]};
     }}
     
-    /* Contato centralizado */
     .contato-central {{
         text-align: center;
         margin: 15px 0 25px 0;
@@ -163,7 +290,6 @@ st.markdown(f"""
         border: 1px solid #E8E8E8;
     }}
     
-    /* Preço - cor de destaque */
     .price {{
         color: {CORES["destaque_preco"]};
         font-size: 26px;
@@ -171,7 +297,6 @@ st.markdown(f"""
         margin: 10px 0;
     }}
     
-    /* Card do produto */
     .product-card {{
         background-color: {CORES["fundo_card"]};
         border-radius: 12px;
@@ -188,7 +313,6 @@ st.markdown(f"""
         border-color: {CORES["dourado"]};
     }}
     
-    /* Referência */
     .ref {{
         color: {CORES["cinza_claro"]};
         font-size: 11px;
@@ -197,7 +321,6 @@ st.markdown(f"""
         letter-spacing: 0.5px;
     }}
     
-    /* Nome do produto */
     .product-name {{
         color: {CORES["preto"]};
         font-size: 17px;
@@ -205,7 +328,6 @@ st.markdown(f"""
         margin: 6px 0;
     }}
     
-    /* Categoria/Grupo */
     .product-category {{
         color: {CORES["cinza_claro"]};
         font-size: 12px;
@@ -213,40 +335,23 @@ st.markdown(f"""
         margin-bottom: 10px;
     }}
     
-    /* Botão de orçamento */
-    .stButton > button {{
-        background-color: {CORES["preto"]};
-        color: white;
-        border: none;
-        border-radius: 30px;
-        padding: 10px 16px;
-        font-weight: 600;
-        font-size: 14px;
-        width: 100%;
-        cursor: pointer;
-        transition: all 0.3s;
-    }}
-    
-    .stButton > button:hover {{
-        background-color: {CORES["dourado"]};
-        color: {CORES["preto"]};
-    }}
-    
-    /* Separador */
     hr {{
         border-color: #E8E8E8;
         margin: 25px 0;
     }}
     
-    /* Títulos das seções */
     h1, h2, h3 {{
         color: {CORES["preto"]};
     }}
     
-    /* Labels dos filtros */
-    .stSelectbox label, .stSlider label, .stTextInput label {{
+    .stSelectbox label {{
         color: {CORES["cinza_texto"]} !important;
         font-weight: 500 !important;
+    }}
+    
+    /* Estilizar o selectbox de página */
+    .stSelectbox div[data-baseweb="select"] {{
+        min-width: 120px;
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -376,6 +481,8 @@ busca_referencia = st.sidebar.text_input("🔎 Buscar por Referência", placehol
 
 if st.sidebar.button("🔄 Limpar Filtros"):
     st.cache_data.clear()
+    # Resetar página quando limpar filtros
+    st.session_state.pagina_atual = 1
     st.rerun()
 
 # ============================================
@@ -402,16 +509,50 @@ if busca_referencia:
     ]
 
 # ============================================
+# PAGINAÇÃO CENTRAL - 9 ITENS POR PÁGINA
+# ============================================
+ITENS_POR_PAGINA = 9
+total_encontrados = len(dados_filtrados)
+total_paginas = max(1, (total_encontrados + ITENS_POR_PAGINA - 1) // ITENS_POR_PAGINA)
+
+# Inicializar página atual
+if 'pagina_atual' not in st.session_state:
+    st.session_state.pagina_atual = 1
+
+# Resetar página quando filtros mudarem
+if 'ultimos_filtros' not in st.session_state:
+    st.session_state.ultimos_filtros = (familia_escolhida, grupo_escolhido, faixa_preco, busca_referencia)
+else:
+    filtros_atual = (familia_escolhida, grupo_escolhido, faixa_preco, busca_referencia)
+    if filtros_atual != st.session_state.ultimos_filtros:
+        st.session_state.pagina_atual = 1
+        st.session_state.ultimos_filtros = filtros_atual
+
+# Garantir que a página atual está dentro dos limites
+if st.session_state.pagina_atual > total_paginas:
+    st.session_state.pagina_atual = total_paginas
+if st.session_state.pagina_atual < 1:
+    st.session_state.pagina_atual = 1
+
+# Calcular índices da página atual
+indice_inicio = (st.session_state.pagina_atual - 1) * ITENS_POR_PAGINA
+indice_fim = min(indice_inicio + ITENS_POR_PAGINA, total_encontrados)
+
+# Fatiar os dados para a página atual
+dados_pagina = dados_filtrados.iloc[indice_inicio:indice_fim]
+
+# ============================================
 # EXIBIR PRODUTOS
 # ============================================
-st.markdown(f"## ✨ Produtos Encontrados: {len(dados_filtrados)}")
+st.markdown(f"## ✨ Produtos Encontrados: {total_encontrados}")
 
 if dados_filtrados.empty:
     st.warning("😕 Nenhum produto encontrado.")
 else:
+    # Exibir produtos em 3 colunas (3x3 = 9 itens)
     colunas = st.columns(3)
     
-    for posicao, (indice, produto) in enumerate(dados_filtrados.iterrows()):
+    for posicao, (indice, produto) in enumerate(dados_pagina.iterrows()):
         with colunas[posicao % 3]:
             st.markdown(f"""
             <div class='product-card'>
@@ -448,11 +589,44 @@ else:
                 except:
                     st.caption(f"⚖️ Peso: {produto['Peso Liq S/Cx']}")
             
-            if st.button("📞 Solicitar Orçamento", key=f"btn_{indice}"):
-                st.success(f"✅ {produto['Descrição']} (Ref: {produto['Referência']})")
-                st.info("📱 WhatsApp: (11) 4676-9000")
-            
             st.markdown("---")
+    
+    # ============================================
+    # CONTROLE DE PAGINAÇÃO - APARECE APENAS QUANDO NECESSÁRIO
+    # ============================================
+    if total_paginas > 1:
+        st.markdown("---")
+        
+        # Container centralizado para o combobox
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            st.markdown('<div class="pagination-central" style="text-align: center; padding: 20px; background: linear-gradient(135deg, #FFFFFF 0%, #fafafa 100%); border-radius: 12px; border: 1px solid #E0E0E0;">', unsafe_allow_html=True)
+            
+            # Selectbox para navegação de páginas
+            pagina_selecionada = st.selectbox(
+                "📄 Navegar para página",
+                options=list(range(1, total_paginas + 1)),
+                index=st.session_state.pagina_atual - 1,
+                key="page_select_central"
+            )
+            
+            if pagina_selecionada != st.session_state.pagina_atual:
+                st.session_state.pagina_atual = pagina_selecionada
+                st.rerun()
+            
+            # Informações resumidas
+            st.markdown(f"""
+            <div style='text-align: center; margin-top: 8px; font-size: 12px; color: #666;'>
+                Mostrando {indice_inicio + 1} - {min(indice_fim, total_encontrados)} de {total_encontrados} produtos
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Barra de progresso
+        progresso = st.session_state.pagina_atual / total_paginas
+        st.progress(progresso, text=f"📄 Página {st.session_state.pagina_atual} de {total_paginas}")
 
 # ============================================
 # RODAPÉ
@@ -493,6 +667,12 @@ st.markdown("""
     font-weight: bold;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     z-index: 1000;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.whatsapp-float:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
 }
 .whatsapp-float a {
     color: white;
