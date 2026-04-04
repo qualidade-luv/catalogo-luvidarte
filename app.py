@@ -1,4 +1,4 @@
-import streamlit as st
+iimport streamlit as st
 import pandas as pd
 import numpy as np
 import re
@@ -10,12 +10,177 @@ from datetime import datetime
 import time
 
 # ============================================
-# FUNÇÃO PARA GERENCIAR COOKIES (VERSÃO SIMPLES E FUNCIONAL)
+# CONFIGURAÇÃO DA PÁGINA (com favicon)
+# ============================================
+def carregar_logo_favicon():
+    url_drive = "https://drive.google.com/uc?export=download&id=1wiwp3txOXGsEMRrUgzdLFlxQL2188uTw"
+    try:
+        response = requests.get(url_drive, timeout=10)
+        if response.status_code == 200:
+            img = Image.open(BytesIO(response.content))
+            img = img.resize((32, 32))
+            return img
+    except:
+        pass
+    return None
+
+favicon = carregar_logo_favicon()
+if favicon:
+    st.set_page_config(
+        page_title="Luvidarte - Catálogo Virtual",
+        page_icon=favicon,
+        layout="wide"
+    )
+else:
+    st.set_page_config(
+        page_title="Luvidarte - Catálogo Virtual",
+        page_icon="📦",
+        layout="wide"
+    )
+
+# ============================================
+# REMOVER BOTÃO "MANAGE APP" DO STREAMLIT - VERSÃO COMPLETA
+# ============================================
+st.markdown("""
+<style>
+/* Esconder o botão Manage app e todo o toolbar */
+.stApp header div[data-testid="stToolbar"] {
+    display: none !important;
+}
+
+[data-testid="stToolbar"] {
+    display: none !important;
+}
+
+/* Esconder o botão de menu (três pontinhos) */
+button[aria-label="View app menu"] {
+    display: none !important;
+}
+
+button[aria-label="Manage app"] {
+    display: none !important;
+}
+
+/* Esconder o toolbar inteiro do header */
+header[data-testid="stHeader"] {
+    display: none !important;
+}
+
+/* Esconder elementos específicos do Streamlit Cloud */
+.css-1kyxreq {
+    display: none !important;
+}
+
+.stDecoration {
+    display: none !important;
+}
+
+/* Esconder qualquer elemento que contenha "manage" */
+button:has(span:contains("Manage")),
+a:has(span:contains("Manage")) {
+    display: none !important;
+}
+
+/* Esconder o footer do Streamlit */
+footer {
+    display: none !important;
+}
+
+/* Remover o espaço extra do header */
+.main > div {
+    padding-top: 0rem !important;
+}
+
+/* Remover qualquer overlay ou elemento extra */
+#MainMenu {
+    visibility: hidden;
+    display: none;
+}
+
+/* Para versões mais recentes do Streamlit */
+[data-testid="collapsedControl"] {
+    display: none !important;
+}
+
+/* Remover borda superior quando deploy no cloud */
+.stApp > header {
+    display: none !important;
+}
+
+/* Esconder botão de deploy */
+.stAppDeployButton {
+    display: none !important;
+}
+
+/* Garantir que o botão WhatsApp não seja afetado */
+.whatsapp-float {
+    z-index: 999999 !important;
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+}
+</style>
+
+<script>
+// JavaScript para remover qualquer elemento que possa aparecer depois
+(function() {
+    function removeManageElements() {
+        // Procurar e remover botões Manage por texto
+        const allElements = document.querySelectorAll('button, a, div, span');
+        allElements.forEach(el => {
+            if (el.innerText && el.innerText.toLowerCase().includes('manage')) {
+                el.style.display = 'none';
+                if (el.parentNode) {
+                    // Também tenta esconder o container pai
+                    if (el.parentNode.style) {
+                        el.parentNode.style.display = 'none';
+                    }
+                }
+            }
+        });
+        
+        // Remover toolbar
+        const toolbars = document.querySelectorAll('[data-testid="stToolbar"]');
+        toolbars.forEach(toolbar => {
+            if (toolbar && toolbar.remove) {
+                toolbar.remove();
+            } else if (toolbar) {
+                toolbar.style.display = 'none';
+            }
+        });
+        
+        // Remover header
+        const headers = document.querySelectorAll('header');
+        headers.forEach(header => {
+            if (header.getAttribute('data-testid') === 'stHeader') {
+                header.style.display = 'none';
+            }
+        });
+        
+        // Remover qualquer elemento com classe relacionada a manage
+        const manageClasses = document.querySelectorAll('[class*="manage"], [class*="Manage"]');
+        manageClasses.forEach(el => {
+            el.style.display = 'none';
+        });
+    }
+    
+    // Executar imediatamente
+    removeManageElements();
+    
+    // Executar novamente após um pequeno delay
+    setTimeout(removeManageElements, 100);
+    setTimeout(removeManageElements, 500);
+    setTimeout(removeManageElements, 1000);
+})();
+</script>
+""", unsafe_allow_html=True)
+
+# ============================================
+# FUNÇÃO PARA GERENCIAR COOKIES (VERSÃO CORRIGIDA)
 # ============================================
 def init_cookie_consent():
     """Inicializa o sistema de consentimento de cookies"""
     if 'cookie_consent' not in st.session_state:
-        # Verificar se já existe no localStorage via query params
         st.session_state.cookie_consent = None
 
 def set_cookie_consent(consent):
@@ -24,6 +189,10 @@ def set_cookie_consent(consent):
 
 def show_cookie_banner():
     """Exibe o banner de cookies com botões Streamlit"""
+    # Garantir que a variável existe (segurança extra)
+    if 'cookie_consent' not in st.session_state:
+        st.session_state.cookie_consent = None
+    
     if st.session_state.cookie_consent is None:
         # Verificar se veio alguma escolha via query params
         if 'cookie_choice' in st.query_params:
@@ -133,38 +302,9 @@ def show_cookie_banner():
         st.stop()
 
 # ============================================
-# CONFIGURAÇÃO DA PÁGINA (com favicon)
+# INICIALIZAR E MOSTRAR BANNER DE COOKIES
 # ============================================
-def carregar_logo_favicon():
-    url_drive = "https://drive.google.com/uc?export=download&id=1wiwp3txOXGsEMRrUgzdLFlxQL2188uTw"
-    try:
-        response = requests.get(url_drive, timeout=10)
-        if response.status_code == 200:
-            img = Image.open(BytesIO(response.content))
-            img = img.resize((32, 32))
-            return img
-    except:
-        pass
-    return None
-
-# Inicializar sistema de cookies
-init_cookie_consent()
-
-favicon = carregar_logo_favicon()
-if favicon:
-    st.set_page_config(
-        page_title="Luvidarte - Catálogo Virtual",
-        page_icon=favicon,
-        layout="wide"
-    )
-else:
-    st.set_page_config(
-        page_title="Luvidarte - Catálogo Virtual",
-        page_icon="📦",
-        layout="wide"
-    )
-
-# Mostrar banner de cookies
+init_cookie_consent()  # <--- LINHA ESSENCIAL CORRIGIDA!
 show_cookie_banner()
 
 # ============================================
@@ -601,7 +741,7 @@ else:
         col1, col2, col3 = st.columns([1, 2, 1])
         
         with col2:
-            st.markdown('<div class="pagination-central" style="text-align: center; padding: 20px; background: linear-gradient(135deg, #FFFFFF 0%, #fafafa 100%); border-radius: 12px; border: 1px solid #E0E0E0;">', unsafe_allow_html=True)
+            st.markdown('<div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #FFFFFF 0%, #fafafa 100%); border-radius: 12px; border: 1px solid #E0E0E0;">', unsafe_allow_html=True)
             
             # Selectbox para navegação de páginas
             pagina_selecionada = st.selectbox(
@@ -666,7 +806,7 @@ st.markdown("""
     font-size: 14px;
     font-weight: bold;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    z-index: 1000;
+    z-index: 999999 !important;
     cursor: pointer;
     transition: all 0.3s ease;
 }
