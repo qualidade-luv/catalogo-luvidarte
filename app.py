@@ -844,22 +844,29 @@ else:
                 st.image("https://via.placeholder.com/300x200?text=Sem+Imagem", use_container_width=True)
             
             # ============================================
-            # EXIBIR ML COM FORMATAÇÃO DE MILHAR E 3 CASAS DECIMAIS
+            # EXIBIR ML - CORRIGIDO
+            # Se ml for None, NaN, vazio ou igual a 0 → exibe "---"
             # ============================================
-            if pd.notna(produto.get('ml')) and produto['ml'] > 0:
-                ml_formatado = formatar_ml(produto['ml'])
-                if ml_formatado:
-                    st.markdown(f"📏 **{ml_formatado} ml**")
+            if 'ml' in produto:
+                if pd.notna(produto.get('ml')) and produto['ml'] > 0:
+                    ml_formatado = formatar_ml(produto['ml'])
+                    if ml_formatado:
+                        st.markdown(f"📏 **{ml_formatado} ml**")
+                else:
+                    st.markdown(f"📏 **---**")
             
-            if pd.notna(produto.get('Medidas')):
+            # Exibir medidas se existir
+            if pd.notna(produto.get('Medidas')) and str(produto['Medidas']).strip():
                 st.markdown(f"📐 {produto['Medidas']}")
             
+            # Exibir preço
             preco = produto['Preço']
             if pd.notna(preco) and preco > 0:
                 st.markdown(f"<p class='price'>R$ {preco:.2f}</p>", unsafe_allow_html=True)
             else:
                 st.markdown(f"<p class='price'>💰 Sob consulta</p>", unsafe_allow_html=True)
             
+            # Exibir peso se existir
             if pd.notna(produto.get('Peso Liq S/Cx')):
                 try:
                     peso = float(produto['Peso Liq S/Cx'])
