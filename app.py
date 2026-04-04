@@ -111,14 +111,6 @@ footer {
 .stAppDeployButton {
     display: none !important;
 }
-
-/* Garantir que o botão WhatsApp não seja afetado */
-.whatsapp-float {
-    z-index: 999999 !important;
-    position: fixed !important;
-    bottom: 20px !important;
-    right: 20px !important;
-}
 </style>
 
 <script>
@@ -304,7 +296,7 @@ def show_cookie_banner():
 # ============================================
 # INICIALIZAR E MOSTRAR BANNER DE COOKIES
 # ============================================
-init_cookie_consent()  # <--- LINHA ESSENCIAL CORRIGIDA!
+init_cookie_consent()
 show_cookie_banner()
 
 # ============================================
@@ -790,38 +782,50 @@ st.markdown("---")
 st.markdown(f"<p style='text-align: center; font-size: 12px; color:{CORES['cinza_claro']}'>© 2024 Luvidarte - Canal exclusivo para empresas</p>", unsafe_allow_html=True)
 
 # ============================================
-# WHATSAPP FLUTUANTE
+# WHATSAPP FLUTUANTE - POSICIONADO NO CANTO SUPERIOR DIREITO
 # ============================================
 st.markdown("""
 <style>
 .whatsapp-float {
     position: fixed;
-    bottom: 20px;
+    top: 80px;
     right: 20px;
     background-color: #25D366;
     color: white;
     border-radius: 50px;
-    padding: 12px 20px;
+    padding: 10px 18px;
     text-align: center;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     z-index: 999999 !important;
     cursor: pointer;
     transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 .whatsapp-float:hover {
     transform: scale(1.05);
     box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+    background-color: #075E54;
 }
 .whatsapp-float a {
     color: white;
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.whatsapp-icon {
+    font-size: 18px;
+    font-weight: normal;
 }
 </style>
 <div class="whatsapp-float">
     <a href="https://wa.me/551146769000?text=Olá! Gostaria de informações sobre os produtos Luvidarte" target="_blank">
-        💬 Fale conosco no WhatsApp
+        <span class="whatsapp-icon">💬</span>
+        <span>WhatsApp</span>
     </a>
 </div>
 """, unsafe_allow_html=True)
