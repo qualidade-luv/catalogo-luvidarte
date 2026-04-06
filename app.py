@@ -76,6 +76,23 @@ def converter_moeda_para_numero(valor):
         return np.nan
 
 # ============================================
+# FUNÇÃO PARA CONVERTER PERCENTUAL
+# ============================================
+def converter_percentual_para_numero(valor):
+    if pd.isna(valor) or valor == '' or valor is None:
+        return 0.0
+    valor_str = str(valor).strip()
+    valor_str = valor_str.replace('%', '')
+    valor_str = valor_str.replace(',', '.')
+    try:
+        percentual = float(valor_str)
+        if percentual > 1 and percentual <= 100:
+            percentual = percentual / 100
+        return percentual
+    except:
+        return 0.0
+
+# ============================================
 # FUNÇÃO PARA CARREGAR A PLANILHA PRINCIPAL
 # ============================================
 @st.cache_data(ttl=600)
@@ -89,7 +106,6 @@ def carregar_planilha(id_planilha, nome_aba="base"):
             df['Preço'] = df['Preço Bruto'].apply(converter_moeda_para_numero)
         
         df['GRUPO'] = df['GRUPO'].fillna('Outros')
-        df['FAMILIA'] = df['FAMILIA'].fillna('Outros')
         df['Descrição'] = df['Descrição'].fillna('Produto sem descrição')
         df['Referência'] = df['Referência'].fillna('').astype(str)
         
@@ -114,6 +130,34 @@ def carregar_base_st(id_planilha_st, nome_aba_st="BASE_ST"):
         return df_st
     except Exception as erro:
         st.warning(f"⚠️ Planilha de ST não encontrada.")
+        return pd.DataFrame()
+
+# ============================================
+# FUNÇÃO PARA CARREGAR A PLANILHA DE DESCONTOS (NORMAL)
+# ============================================
+@st.cache_data(ttl=600)
+def carregar_descontos_normal(id_planilha, nome_aba="NORMAL"):
+    try:
+        url = f"https://docs.google.com/spreadsheets/d/{id_planilha}/gviz/tq?tqx=out:csv&sheet={nome_aba}"
+        df_normal = pd.read_csv(url)
+        df_normal.columns = df_normal.columns.str.strip()
+        return df_normal
+    except Exception as erro:
+        st.warning(f"⚠️ Planilha NORMAL não encontrada.")
+        return pd.DataFrame()
+
+# ============================================
+# FUNÇÃO PARA CARREGAR A PLANILHA DE DESCONTOS (ISENTO)
+# ============================================
+@st.cache_data(ttl=600)
+def carregar_descontos_isento(id_planilha, nome_aba="ISENTO"):
+    try:
+        url = f"https://docs.google.com/spreadsheets/d/{id_planilha}/gviz/tq?tqx=out:csv&sheet={nome_aba}"
+        df_isento = pd.read_csv(url)
+        df_isento.columns = df_isento.columns.str.strip()
+        return df_isento
+    except Exception as erro:
+        st.warning(f"⚠️ Planilha ISENTO não encontrada.")
         return pd.DataFrame()
 
 # ============================================
@@ -181,6 +225,90 @@ def buscar_aliquota_st(ncm: str, uf: str, df_st: pd.DataFrame) -> float:
         return aliquota
     except:
         return 0.0
+
+# ============================================
+# FUNÇÃO PARA DETERMINAR ICMS BASEADO NA UF
+# ============================================
+def determinar_icms_por_uf(uf: str) -> float:
+    """
+    Determina o percentual de ICMS baseado na UF
+    ICMS 18%: SP
+    ICMS 12%: MG, RS, SE, PR, RJ, SC
+    ICMS 7%: Demais estados
+    """
+    uf_upper = uf.upper()
+    
+    if uf_upper == "SP":
+        return 18.0
+    elif uf_upper in ["MG", "RS", "SE", "PR", "RJ", "SC"]:
+        return 12.0
+    else:
+        return 7.0
+
+# ============================================
+# FUNÇÃO PARA BUSCAR DESCONTO (NORMAL ou ISENTO) - SEM DEBUG
+# ============================================
+def buscar_desconto(icms: float, forma_pagamento: str, df_desconto: pd.DataFrame) -> float:
+    """
+    Busca o desconto na planilha de descontos (NORMAL ou ISENTO)
+    """
+    if df_desconto.empty:
+        return 0.0
+    
+    # Para PREÇO BASE, retorna 0
+    if forma_pagamento == "PREÇO BASE":
+        return 0.0
+    
+    # Criar uma cópia para não modificar a original
+    df_temp = df_desconto.copy()
+    
+    # Limpar e converter a coluna ICMS
+    df_temp['ICMS_LIMPO'] = df_temp['ICMS'].astype(str).str.replace('%', '').str.replace(',', '.').str.strip()
+    df_temp['ICMS_LIMPO'] = pd.to_numeric(df_temp['ICMS_LIMPO'], errors='coerce')
+    
+    # Converter ICMS para porcentagem (12.0)
+    icms_percent = float(icms)
+    
+    # Limpar a coluna FORMA
+    # Converter para string e depois para número quando possível
+    df_temp['FORMA_LIMPO'] = df_temp['FORMA'].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+    
+    # Para VISTA, o valor na planilha é vazio
+    if forma_pagamento == "VISTA":
+        forma_para_buscar = ""
+    else:
+        # Converter forma_pagamento para número (30, 45, etc) e depois para string com .0
+        try:
+            forma_numero = float(forma_pagamento)
+            forma_para_buscar = f"{forma_numero:.1f}"  # "30.0", "45.0", etc
+        except:
+            forma_para_buscar = forma_pagamento
+    
+    # Filtrar por ICMS e FORMA
+    df_filtrado = df_temp[
+        (df_temp['ICMS_LIMPO'] == icms_percent) & 
+        (df_temp['FORMA_LIMPO'] == forma_para_buscar)
+    ]
+    
+    # Se não encontrar, tentar comparar como número inteiro
+    if df_filtrado.empty and forma_pagamento != "VISTA":
+        try:
+            forma_numero = float(forma_pagamento)
+            # Tentar como inteiro sem decimal
+            forma_int = str(int(forma_numero))
+            df_filtrado = df_temp[
+                (df_temp['ICMS_LIMPO'] == icms_percent) & 
+                (df_temp['FORMA_LIMPO'] == forma_int)
+            ]
+        except:
+            pass
+    
+    if not df_filtrado.empty:
+        valor_desconto = df_filtrado.iloc[0]['DESCONTO']
+        desconto = converter_percentual_para_numero(valor_desconto)
+        return desconto
+    
+    return 0.0
 
 # ============================================
 # FUNÇÃO PARA FORMATAR ML
@@ -517,49 +645,52 @@ st.markdown("---")
 # CONFIGURAÇÕES DAS PLANILHAS
 # ============================================
 ID_PLANILHA = "1DCmwFzQvbQYDBsQft17VO9szjixgq1Bp09dYTfu142w"
-ID_PLANILHA_ST = "1DCmwFzQvbQYDBsQft17VO9szjixgq1Bp09dYTfu142w"
 NOME_ABA = "base"
 NOME_ABA_ST = "BASE_ST"
+NOME_ABA_NORMAL = "NORMAL"
+NOME_ABA_ISENTO = "ISENTO"
 
 # ============================================
 # CARREGAR DADOS
 # ============================================
 with st.spinner("🔄 Carregando catálogo..."):
     dados = carregar_planilha(ID_PLANILHA, NOME_ABA)
-    dados_st = carregar_base_st(ID_PLANILHA_ST, NOME_ABA_ST)
+    dados_st = carregar_base_st(ID_PLANILHA, NOME_ABA_ST)
+    dados_normal = carregar_descontos_normal(ID_PLANILHA, NOME_ABA_NORMAL)
+    dados_isento = carregar_descontos_isento(ID_PLANILHA, NOME_ABA_ISENTO)
 
 if dados.empty:
     st.stop()
 
 # ============================================
-# SIDEBAR - FILTROS
+# SIDEBAR - FILTROS E CONFIGURAÇÕES
 # ============================================
-st.sidebar.header("🔍 Filtrar Produtos")
-st.sidebar.markdown(f"📊 **Total: {len(dados)} produtos**")
+
+# Seção FILTRAR PRODUTOS
+st.sidebar.header("🔍 FILTRAR PRODUTOS")
+st.sidebar.markdown(f"📊 **Total encontrado:** {len(dados)} produtos")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🏢 Configuração de ST")
+
+# Seção CONFIGURAÇÕES
+st.sidebar.header("⚙️ CONFIGURAÇÕES")
+
+# UF - SP como padrão (índice 0)
 uf_selecionada = st.sidebar.selectbox(
-    "📍 Selecione a UF para cálculo do ICMS ST",
+    "📍 UF (ICMS)",
     options=UFS_BRASIL,
-    index=UFS_BRASIL.index("SP") if "SP" in UFS_BRASIL else 0,
-    help="A alíquota de Substituição Tributária será baseada na UF selecionada"
+    index=UFS_BRASIL.index("SP"),
+    help="Selecione a UF para cálculo do ICMS e descontos"
 )
 
-# ============================================
-# FILTROS DE PRODUTOS
-# ============================================
-familias = ["Todas"] + sorted(dados['FAMILIA'].unique())
-familia_escolhida = st.sidebar.selectbox("📌 Família", familias)
-
-if familia_escolhida != "Todas":
-    grupos_disponiveis = dados[dados['FAMILIA'] == familia_escolhida]['GRUPO'].unique()
-else:
-    grupos_disponiveis = dados['GRUPO'].unique()
-
-grupos = ["Todos"] + sorted(grupos_disponiveis)
+# Grupo
+grupos = ["Todos"] + sorted(dados['GRUPO'].unique())
 grupo_escolhido = st.sidebar.selectbox("📦 Grupo", grupos)
 
+# Busca por Referência
+busca_referencia = st.sidebar.text_input("🔎 Buscar por Referência", placeholder="Ex: 10, 40, 60...")
+
+# Faixa de Preço
 precos_validos = dados['Preço'].dropna()
 if len(precos_validos) > 0:
     preco_min = float(precos_validos.min())
@@ -575,7 +706,22 @@ else:
     faixa_preco = (0, 1000)
 
 st.sidebar.markdown("---")
-busca_referencia = st.sidebar.text_input("🔎 Buscar por Referência", placeholder="Ex: 10, 40, 60...")
+
+# Cliente Isento
+cliente_isento = st.sidebar.checkbox("🏷️ Cliente Isento", value=False, help="Ative esta opção para clientes isentos")
+
+st.sidebar.markdown("---")
+
+# Forma de Pagamento
+st.sidebar.markdown("### 💳 FORMA DE PAGAMENTO")
+forma_pagamento = st.sidebar.radio(
+    "Selecione a condição:",
+    options=["PREÇO BASE", "VISTA", "30", "45", "60", "75", "90"],
+    index=0,
+    help="PREÇO BASE: Sem desconto | VISTA: À vista | Demais: Prazos"
+)
+
+st.sidebar.markdown("---")
 
 if st.sidebar.button("🔄 Limpar Filtros"):
     st.cache_data.clear()
@@ -583,12 +729,24 @@ if st.sidebar.button("🔄 Limpar Filtros"):
     st.rerun()
 
 # ============================================
+# DETERMINAR ICMS BASEADO NA UF
+# ============================================
+icms_uf = determinar_icms_por_uf(uf_selecionada)
+
+# ============================================
+# SELECIONAR A TABELA DE DESCONTO CORRETA
+# ============================================
+if cliente_isento:
+    tabela_desconto = dados_isento
+    tipo_cliente = "ISENTO"
+else:
+    tabela_desconto = dados_normal
+    tipo_cliente = "NORMAL"
+
+# ============================================
 # APLICAR FILTROS
 # ============================================
 dados_filtrados = dados.copy()
-
-if familia_escolhida != "Todas":
-    dados_filtrados = dados_filtrados[dados_filtrados['FAMILIA'] == familia_escolhida]
 
 if grupo_escolhido != "Todos":
     dados_filtrados = dados_filtrados[dados_filtrados['GRUPO'] == grupo_escolhido]
@@ -616,9 +774,9 @@ if 'pagina_atual' not in st.session_state:
     st.session_state.pagina_atual = 1
 
 if 'ultimos_filtros' not in st.session_state:
-    st.session_state.ultimos_filtros = (familia_escolhida, grupo_escolhido, faixa_preco, busca_referencia)
+    st.session_state.ultimos_filtros = (grupo_escolhido, faixa_preco, busca_referencia, uf_selecionada, cliente_isento, forma_pagamento)
 else:
-    filtros_atual = (familia_escolhida, grupo_escolhido, faixa_preco, busca_referencia)
+    filtros_atual = (grupo_escolhido, faixa_preco, busca_referencia, uf_selecionada, cliente_isento, forma_pagamento)
     if filtros_atual != st.session_state.ultimos_filtros:
         st.session_state.pagina_atual = 1
         st.session_state.ultimos_filtros = filtros_atual
@@ -633,10 +791,25 @@ indice_fim = min(indice_inicio + ITENS_POR_PAGINA, total_encontrados)
 dados_pagina = dados_filtrados.iloc[indice_inicio:indice_fim]
 
 # ============================================
-# EXIBIR PRODUTOS COM CÁLCULO DE ST
+# EXIBIR PRODUTOS COM CÁLCULO DE DESCONTO, IPI E ST
 # ============================================
 st.markdown(f"## ✨ Produtos Encontrados: {total_encontrados}")
-st.info(f"🏢 **UF Selecionada para ICMS ST:** {uf_selecionada}")
+
+# Exibir resumo das configurações
+col_info1, col_info2, col_info3, col_info4 = st.columns(4)
+with col_info1:
+    st.info(f"🏢 **UF:** {uf_selecionada} (ICMS {icms_uf}%)")
+with col_info2:
+    st.info(f"📋 **Cliente:** {tipo_cliente}")
+with col_info3:
+    if forma_pagamento == "PREÇO BASE":
+        st.warning(f"💰 **Condição:** {forma_pagamento} (Sem desconto)")
+    else:
+        st.success(f"💰 **Condição:** {forma_pagamento} dias")
+with col_info4:
+    st.info(f"📦 **Grupo:** {grupo_escolhido}")
+
+st.markdown("---")
 
 if dados_filtrados.empty:
     st.warning("😕 Nenhum produto encontrado.")
@@ -676,37 +849,57 @@ else:
                 st.markdown(f"📐 {produto['Medidas']}")
             
             # ============================================
-            # CÁLCULO DO PREÇO, IPI, ST E TOTAL
+            # CÁLCULO DO PREÇO COM DESCONTO, IPI, ST E TOTAL
             # ============================================
-            preco_base = produto['Preço'] if pd.notna(produto['Preço']) and produto['Preço'] > 0 else 0
+            preco_bruto = produto['Preço'] if pd.notna(produto['Preço']) and produto['Preço'] > 0 else 0
+            
+            # Buscar desconto na tabela correta (NORMAL ou ISENTO)
+            if forma_pagamento == "PREÇO BASE":
+                desconto_percentual = 0.0
+            else:
+                desconto_percentual = buscar_desconto(icms_uf, forma_pagamento, tabela_desconto)
+            
+            # Calcular valor com desconto
+            valor_com_desconto = preco_bruto * (1 - desconto_percentual)
             
             # Buscar NCM do produto
             ncm_produto = produto.get('NCM', '')
             
-            # Buscar IPI na planilha BASE_ST
+            # Buscar IPI na planilha BASE_ST (IPI incide sobre o valor com desconto)
             ipi_percentual = buscar_ipi(ncm_produto, dados_st)
+            valor_ipi = valor_com_desconto * ipi_percentual
             
-            # Calcular valor do IPI
-            valor_ipi = preco_base * ipi_percentual
-            
-            # Buscar alíquota ST na planilha BASE_ST
+            # Buscar alíquota ST na planilha BASE_ST (ST incide sobre o valor com desconto)
             aliquota_st = buscar_aliquota_st(ncm_produto, uf_selecionada, dados_st)
             
-            # Cálculo do ST: SOMENTE sobre a Base (sem IPI)
-            valor_st = preco_base * aliquota_st
+            # Calcular ST
+            if cliente_isento:
+                valor_st = 0.0
+                aliquota_st = 0.0
+            else:
+                valor_st = valor_com_desconto * aliquota_st
             
-            # Valor total = Base + IPI + ST
-            valor_total = preco_base + valor_ipi + valor_st
+            # Valor total = Valor com desconto + IPI + ST
+            valor_total = valor_com_desconto + valor_ipi + valor_st
             
             # ============================================
             # EXIBIÇÃO DOS VALORES
             # ============================================
             
-            # Preço Base
-            if preco_base > 0:
-                st.markdown(f"💰 **Base:** R$ {preco_base:.2f}")
+            # Preço Bruto
+            if preco_bruto > 0:
+                st.markdown(f"💰 **Preço Bruto:** R$ {preco_bruto:.2f}")
             else:
-                st.markdown(f"💰 **Base:** Sob consulta")
+                st.markdown(f"💰 **Preço Bruto:** Sob consulta")
+            
+            # Desconto
+            if desconto_percentual > 0:
+                valor_desconto_reais = preco_bruto * desconto_percentual
+                st.markdown(f"🎯 **Desconto:** {desconto_percentual*100:.2f}% (R$ {valor_desconto_reais:.2f})")
+                st.markdown(f"📉 **Valor com Desconto:** R$ {valor_com_desconto:.2f}")
+            elif forma_pagamento != "PREÇO BASE":
+                st.markdown(f"🎯 **Desconto:** 0,00%")
+                st.markdown(f"📉 **Valor com Desconto:** R$ {valor_com_desconto:.2f}")
             
             # IPI
             if ipi_percentual > 0:
@@ -714,15 +907,19 @@ else:
             else:
                 st.markdown(f"🔷 **IPI:** Não aplicável")
             
-            # Alíquota ST
-            if aliquota_st > 0:
+            # ST e Total Final
+            if cliente_isento:
+                st.markdown(f"🟣 **ST ({uf_selecionada}):** Cliente Isento - ST não aplicada")
+                if preco_bruto > 0:
+                    st.markdown(f"✅ **TOTAL COM IPI:** R$ {valor_com_desconto + valor_ipi:.2f}")
+            elif aliquota_st > 0:
                 st.markdown(f"🟣 **Alíq. ST ({uf_selecionada}):** {aliquota_st*100:.2f}%")
                 st.markdown(f"📊 **Valor ST:** R$ {valor_st:.2f}")
-                st.markdown(f"✅ **TOTAL COM ST:** R$ {valor_total:.2f}")
+                st.markdown(f"✅ **TOTAL COM IPI + ST:** R$ {valor_total:.2f}")
             else:
                 st.markdown(f"🟣 **ST ({uf_selecionada}):** Não aplicável")
-                if preco_base > 0:
-                    st.markdown(f"✅ **TOTAL:** R$ {preco_base + valor_ipi:.2f}")
+                if preco_bruto > 0:
+                    st.markdown(f"✅ **TOTAL COM IPI:** R$ {valor_com_desconto + valor_ipi:.2f}")
             
             # Peso
             if pd.notna(produto.get('Peso Liq S/Cx')):
@@ -785,7 +982,7 @@ st.markdown(f"<p style='text-align: center; font-size: 12px; color:{CORES['cinza
 
 # ============================================
 # WHATSAPP FLUTUANTE
-# =================================
+# ============================================
 st.markdown("""
 <style>
 .whatsapp-float {
