@@ -1048,7 +1048,7 @@ st.markdown("""
 }
 </style>
 <div class="whatsapp-float">
-    <a href="https://wa.me/5511930119335?text=Olá! Gostaria de informações sobre os produtos Luvidarte" target="_blank">
+    <a href="https://wa.me/5511930119335?text=Olá vim através do catálogo virtual! Gostaria de informações sobre os produtos Luvidarte" target="_blank">
         <span>💬</span>
         <span>WhatsApp (11) 93011-9335</span>
     </a>
