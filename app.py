@@ -39,23 +39,70 @@ else:
     )
 
 # ============================================
-# REMOVER BOTÃO "MANAGE APP"
+# ESTILO PERSONALIZADO
 # ============================================
 st.markdown("""
 <style>
-.stApp header div[data-testid="stToolbar"] { display: none !important; }
-[data-testid="stToolbar"] { display: none !important; }
-button[aria-label="View app menu"] { display: none !important; }
-button[aria-label="Manage app"] { display: none !important; }
-header[data-testid="stHeader"] { display: none !important; }
-.css-1kyxreq { display: none !important; }
-.stDecoration { display: none !important; }
-footer { display: none !important; }
-.main > div { padding-top: 0rem !important; }
-#MainMenu { visibility: hidden; display: none; }
-[data-testid="collapsedControl"] { display: none !important; }
-.stApp > header { display: none !important; }
+/* Remover APENAS elementos não obrigatórios */
+.stDecoration { display: none; }
 .stAppDeployButton { display: none !important; }
+
+/* Reduzir espaço do header */
+.main > div {
+    padding-top: 1rem;
+}
+
+.stApp {
+    background-color: #F7F7F7;
+}
+
+/* Botão WhatsApp reposicionado - mais acima para não ficar escondido */
+.whatsapp-float {
+    z-index: 999999 !important;
+    position: fixed !important;
+    bottom: 80px !important;
+    right: 20px !important;
+}
+
+/* Rodapé com ícones sociais */
+.social-icons {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    margin: 20px 0 15px 0;
+    flex-wrap: wrap;
+}
+.social-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background-color: #C9A03D;
+    color: white;
+    font-size: 22px;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+.social-icon:hover {
+    transform: translateY(-3px);
+    background-color: #a07e2c;
+}
+.footer-bottom {
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    padding: 15px 0 10px 0;
+    border-top: 1px solid #E0E0E0;
+    margin-top: 20px;
+}
+.contact-footer {
+    text-align: center;
+    font-size: 13px;
+    color: #555;
+    margin: 10px 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -164,7 +211,6 @@ def carregar_descontos_isento(id_planilha, nome_aba="ISENTO"):
 # FUNÇÃO PARA BUSCAR IPI NA BASE_ST
 # ============================================
 def buscar_ipi(ncm: str, df_st: pd.DataFrame) -> float:
-    """Busca o percentual de IPI na planilha BASE_ST (coluna A)"""
     if df_st.empty or not ncm:
         return 0.0
     
@@ -230,12 +276,6 @@ def buscar_aliquota_st(ncm: str, uf: str, df_st: pd.DataFrame) -> float:
 # FUNÇÃO PARA DETERMINAR ICMS BASEADO NA UF
 # ============================================
 def determinar_icms_por_uf(uf: str) -> float:
-    """
-    Determina o percentual de ICMS baseado na UF
-    ICMS 18%: SP
-    ICMS 12%: MG, RS, SE, PR, RJ, SC
-    ICMS 7%: Demais estados
-    """
     uf_upper = uf.upper()
     
     if uf_upper == "SP":
@@ -246,55 +286,40 @@ def determinar_icms_por_uf(uf: str) -> float:
         return 7.0
 
 # ============================================
-# FUNÇÃO PARA BUSCAR DESCONTO (NORMAL ou ISENTO) - SEM DEBUG
+# FUNÇÃO PARA BUSCAR DESCONTO
 # ============================================
 def buscar_desconto(icms: float, forma_pagamento: str, df_desconto: pd.DataFrame) -> float:
-    """
-    Busca o desconto na planilha de descontos (NORMAL ou ISENTO)
-    """
     if df_desconto.empty:
         return 0.0
     
-    # Para PREÇO BASE, retorna 0
     if forma_pagamento == "PREÇO BASE":
         return 0.0
     
-    # Criar uma cópia para não modificar a original
     df_temp = df_desconto.copy()
     
-    # Limpar e converter a coluna ICMS
     df_temp['ICMS_LIMPO'] = df_temp['ICMS'].astype(str).str.replace('%', '').str.replace(',', '.').str.strip()
     df_temp['ICMS_LIMPO'] = pd.to_numeric(df_temp['ICMS_LIMPO'], errors='coerce')
     
-    # Converter ICMS para porcentagem (12.0)
     icms_percent = float(icms)
-    
-    # Limpar a coluna FORMA
-    # Converter para string e depois para número quando possível
     df_temp['FORMA_LIMPO'] = df_temp['FORMA'].apply(lambda x: str(x).strip() if pd.notna(x) else "")
     
-    # Para VISTA, o valor na planilha é vazio
     if forma_pagamento == "VISTA":
         forma_para_buscar = ""
     else:
-        # Converter forma_pagamento para número (30, 45, etc) e depois para string com .0
         try:
             forma_numero = float(forma_pagamento)
-            forma_para_buscar = f"{forma_numero:.1f}"  # "30.0", "45.0", etc
+            forma_para_buscar = f"{forma_numero:.1f}"
         except:
             forma_para_buscar = forma_pagamento
     
-    # Filtrar por ICMS e FORMA
     df_filtrado = df_temp[
         (df_temp['ICMS_LIMPO'] == icms_percent) & 
         (df_temp['FORMA_LIMPO'] == forma_para_buscar)
     ]
     
-    # Se não encontrar, tentar comparar como número inteiro
     if df_filtrado.empty and forma_pagamento != "VISTA":
         try:
             forma_numero = float(forma_pagamento)
-            # Tentar como inteiro sem decimal
             forma_int = str(int(forma_numero))
             df_filtrado = df_temp[
                 (df_temp['ICMS_LIMPO'] == icms_percent) & 
@@ -504,9 +529,11 @@ def show_cookie_banner():
                     <div class="info-message-contact">
                         <span>📞 Para mais informações, entre em contato conosco:</span>
                         <div>
-                            <a href="https://wa.me/551146769000?text=Olá! Gostaria de informações sobre os produtos Luvidarte" target="_blank">
-                                💬 WhatsApp (11) 4676-9000
+                            <a href="https://wa.me/5511930119335?text=Olá! Gostaria de informações sobre os produtos Luvidarte" target="_blank">
+                                💬 WhatsApp (11) 93011-9335
                             </a>
+                            <span style="margin: 0 8px">|</span>
+                            <span>📞 Fixo (11) 4676-9000</span>
                             <span style="margin: 0 8px">|</span>
                             <span>📧 sac@luvidarte.com.br</span>
                         </div>
@@ -540,11 +567,14 @@ CORES = {
 UFS_BRASIL = ["SP", "MG", "RS", "SE", "PR", "RJ", "SC", "MT", "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MS", "PA", "PB", "PE", "PI", "RN", "RO", "RR", "TO"]
 
 # ============================================
-# ESTILO PERSONALIZADO
+# ESTILO PERSONALIZADO ADICIONAL
 # ============================================
 st.markdown(f"""
     <style>
-    .stApp {{ background-color: {CORES["fundo_pagina"]}; }}
+    .stApp {{
+        background-color: {CORES["fundo_pagina"]};
+    }}
+    
     .main-banner {{
         background-color: {CORES["fundo_banner"]};
         border-radius: 16px;
@@ -558,11 +588,13 @@ st.markdown(f"""
         min-height: 110px;
         border: 1px solid {CORES["borda_banner"]};
     }}
+    
     .logo-container {{ flex-shrink: 0; }}
     .logo-img {{ max-height: 70px; width: auto; object-fit: contain; }}
     .banner-text {{ flex-grow: 1; text-align: center; }}
     .banner-text h1 {{ font-size: 38px; margin: 0; font-weight: bold; color: {CORES["preto"]}; }}
     .banner-text p {{ font-size: 15px; margin: 5px 0 0 0; color: {CORES["cinza_texto"]}; }}
+    
     .contato-central {{
         text-align: center;
         margin: 15px 0 25px 0;
@@ -574,6 +606,7 @@ st.markdown(f"""
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         border: 1px solid #E8E8E8;
     }}
+    
     .product-card {{
         background-color: {CORES["fundo_card"]};
         border-radius: 12px;
@@ -583,11 +616,13 @@ st.markdown(f"""
         border: 1px solid {CORES["borda_card"]};
         transition: all 0.2s ease;
     }}
+    
     .product-card:hover {{
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         border-color: {CORES["dourado"]};
     }}
+    
     .ref {{ color: {CORES["cinza_claro"]}; font-size: 11px; font-weight: 500; text-transform: uppercase; }}
     .product-name {{ color: {CORES["preto"]}; font-size: 17px; font-weight: 600; margin: 6px 0; }}
     .product-category {{ color: {CORES["cinza_claro"]}; font-size: 12px; margin-bottom: 10px; }}
@@ -635,6 +670,7 @@ st.markdown(f"""
 <div class='contato-central'>
     📍 Rua Caetano Rubio, 213 - Ferraz de Vasconcelos - SP &nbsp;|&nbsp;
     📞 (11) 4676-9000 &nbsp;|&nbsp;
+    💬 (11) 93011-9335 &nbsp;|&nbsp;
     ✉️ sac@luvidarte.com.br
 </div>
 """, unsafe_allow_html=True)
@@ -666,16 +702,12 @@ if dados.empty:
 # SIDEBAR - FILTROS E CONFIGURAÇÕES
 # ============================================
 
-# Seção FILTRAR PRODUTOS
 st.sidebar.header("🔍 FILTRAR PRODUTOS")
 st.sidebar.markdown(f"📊 **Total encontrado:** {len(dados)} produtos")
 
 st.sidebar.markdown("---")
-
-# Seção CONFIGURAÇÕES
 st.sidebar.header("⚙️ CONFIGURAÇÕES")
 
-# UF - SP como padrão (índice 0)
 uf_selecionada = st.sidebar.selectbox(
     "📍 UF (ICMS)",
     options=UFS_BRASIL,
@@ -683,14 +715,11 @@ uf_selecionada = st.sidebar.selectbox(
     help="Selecione a UF para cálculo do ICMS e descontos"
 )
 
-# Grupo
 grupos = ["Todos"] + sorted(dados['GRUPO'].unique())
 grupo_escolhido = st.sidebar.selectbox("📦 Grupo", grupos)
 
-# Busca por Referência
 busca_referencia = st.sidebar.text_input("🔎 Buscar por Referência", placeholder="Ex: 10, 40, 60...")
 
-# Faixa de Preço
 precos_validos = dados['Preço'].dropna()
 if len(precos_validos) > 0:
     preco_min = float(precos_validos.min())
@@ -707,13 +736,11 @@ else:
 
 st.sidebar.markdown("---")
 
-# Cliente Isento
 cliente_isento = st.sidebar.checkbox("🏷️ Cliente Isento", value=False, help="Ative esta opção para clientes isentos")
 
 st.sidebar.markdown("---")
-
-# Forma de Pagamento
 st.sidebar.markdown("### 💳 FORMA DE PAGAMENTO")
+
 forma_pagamento = st.sidebar.radio(
     "Selecione a condição:",
     options=["PREÇO BASE", "VISTA", "30", "45", "60", "75", "90"],
@@ -791,11 +818,10 @@ indice_fim = min(indice_inicio + ITENS_POR_PAGINA, total_encontrados)
 dados_pagina = dados_filtrados.iloc[indice_inicio:indice_fim]
 
 # ============================================
-# EXIBIR PRODUTOS COM CÁLCULO DE DESCONTO, IPI E ST
+# EXIBIR PRODUTOS
 # ============================================
 st.markdown(f"## ✨ Produtos Encontrados: {total_encontrados}")
 
-# Exibir resumo das configurações
 col_info1, col_info2, col_info3, col_info4 = st.columns(4)
 with col_info1:
     st.info(f"🏢 **UF:** {uf_selecionada} (ICMS {icms_uf}%)")
@@ -826,7 +852,6 @@ else:
             </div>
             """, unsafe_allow_html=True)
             
-            # Imagem
             if pd.notna(produto.get('imagem_url')) and produto.get('imagem_url'):
                 try:
                     st.image(produto['imagem_url'], use_container_width=True)
@@ -835,7 +860,6 @@ else:
             else:
                 st.image("https://via.placeholder.com/300x200?text=Sem+Imagem", use_container_width=True)
             
-            # ML
             if 'ml' in produto:
                 if pd.notna(produto.get('ml')) and produto['ml'] > 0:
                     ml_formatado = formatar_ml(produto['ml'])
@@ -844,55 +868,35 @@ else:
                 else:
                     st.markdown(f"📏 **---**")
             
-            # Medidas
             if pd.notna(produto.get('Medidas')) and str(produto['Medidas']).strip():
                 st.markdown(f"📐 {produto['Medidas']}")
             
-            # ============================================
-            # CÁLCULO DO PREÇO COM DESCONTO, IPI, ST E TOTAL
-            # ============================================
             preco_bruto = produto['Preço'] if pd.notna(produto['Preço']) and produto['Preço'] > 0 else 0
             
-            # Buscar desconto na tabela correta (NORMAL ou ISENTO)
             if forma_pagamento == "PREÇO BASE":
                 desconto_percentual = 0.0
             else:
                 desconto_percentual = buscar_desconto(icms_uf, forma_pagamento, tabela_desconto)
             
-            # Calcular valor com desconto
             valor_com_desconto = preco_bruto * (1 - desconto_percentual)
-            
-            # Buscar NCM do produto
             ncm_produto = produto.get('NCM', '')
-            
-            # Buscar IPI na planilha BASE_ST (IPI incide sobre o valor com desconto)
             ipi_percentual = buscar_ipi(ncm_produto, dados_st)
             valor_ipi = valor_com_desconto * ipi_percentual
-            
-            # Buscar alíquota ST na planilha BASE_ST (ST incide sobre o valor com desconto)
             aliquota_st = buscar_aliquota_st(ncm_produto, uf_selecionada, dados_st)
             
-            # Calcular ST
             if cliente_isento:
                 valor_st = 0.0
                 aliquota_st = 0.0
             else:
                 valor_st = valor_com_desconto * aliquota_st
             
-            # Valor total = Valor com desconto + IPI + ST
             valor_total = valor_com_desconto + valor_ipi + valor_st
             
-            # ============================================
-            # EXIBIÇÃO DOS VALORES
-            # ============================================
-            
-            # Preço Bruto
             if preco_bruto > 0:
                 st.markdown(f"💰 **Preço Bruto:** R$ {preco_bruto:.2f}")
             else:
                 st.markdown(f"💰 **Preço Bruto:** Sob consulta")
             
-            # Desconto
             if desconto_percentual > 0:
                 valor_desconto_reais = preco_bruto * desconto_percentual
                 st.markdown(f"🎯 **Desconto:** {desconto_percentual*100:.2f}% (R$ {valor_desconto_reais:.2f})")
@@ -901,13 +905,11 @@ else:
                 st.markdown(f"🎯 **Desconto:** 0,00%")
                 st.markdown(f"📉 **Valor com Desconto:** R$ {valor_com_desconto:.2f}")
             
-            # IPI
             if ipi_percentual > 0:
                 st.markdown(f"🔷 **IPI:** {ipi_percentual*100:.2f}% = R$ {valor_ipi:.2f}")
             else:
                 st.markdown(f"🔷 **IPI:** Não aplicável")
             
-            # ST e Total Final
             if cliente_isento:
                 st.markdown(f"🟣 **ST ({uf_selecionada}):** Cliente Isento - ST não aplicada")
                 if preco_bruto > 0:
@@ -921,7 +923,6 @@ else:
                 if preco_bruto > 0:
                     st.markdown(f"✅ **TOTAL COM IPI:** R$ {valor_com_desconto + valor_ipi:.2f}")
             
-            # Peso
             if pd.notna(produto.get('Peso Liq S/Cx')):
                 try:
                     peso = float(produto['Peso Liq S/Cx'])
@@ -931,9 +932,6 @@ else:
             
             st.markdown("---")
     
-    # ============================================
-    # CONTROLE DE PAGINAÇÃO
-    # ============================================
     if total_paginas > 1:
         st.markdown("---")
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -963,31 +961,64 @@ else:
         st.progress(progresso, text=f"📄 Página {st.session_state.pagina_atual} de {total_paginas}")
 
 # ============================================
-# RODAPÉ
+# RODAPÉ COM REDES SOCIAIS (Nomes em vez de ícones)
 # ============================================
 st.markdown("---")
-col1, col2, col3, col4 = st.columns(4)
 
-with col1:
-    st.markdown("**📍 Onde Estamos**  \nRua Caetano Rubio, 213  \nFerraz de Vasconcelos - SP")
-with col2:
-    st.markdown("**📞 Contato**  \n(11) 4676-9000  \nsac@luvidarte.com.br")
-with col3:
-    st.markdown("**🕒 Horário**  \nSegunda a Sexta: 8h às 18h  \nSábado: 8h às 12h")
-with col4:
-    st.markdown("**🔗 Links**  \n[Catálogos](#)  \n[Fale Conosco](#)")
+# Horário de atendimento atualizado
+st.markdown("""
+<div style='text-align: center; margin: 10px 0;'>
+    <span style='color: #C9A03D; font-weight: bold;'>🕒 Horário de Atendimento:</span>
+    <span style='color: #555;'> Segunda a Quinta: 07:00 às 17:00 | Sexta: 07:00 às 16:00</span>
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown("---")
-st.markdown(f"<p style='text-align: center; font-size: 12px; color:{CORES['cinza_claro']}'>© 2024 Luvidarte - Canal exclusivo para empresas</p>", unsafe_allow_html=True)
+# Redes sociais com NOMES (sem ícones, sem Pinterest)
+st.markdown("""
+<div style='text-align: center; margin: 20px 0 15px 0;'>
+    <span style='color: #C9A03D; font-weight: bold;'>Siga nossas redes sociais:</span>
+</div>
+<div style='display: flex; justify-content: center; gap: 25px; margin: 10px 0 20px 0; flex-wrap: wrap;'>
+    <a href='https://www.facebook.com/luvidarte' target='_blank' style='color: #3b5998; text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.3s ease;'>
+        Facebook
+    </a>
+    <a href='https://www.instagram.com/luvidartevidros/' target='_blank' style='color: #E4405F; text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.3s ease;'>
+        Instagram
+    </a>
+    <a href='https://www.linkedin.com/company/luvidarte/' target='_blank' style='color: #0077b5; text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.3s ease;'>
+        LinkedIn
+    </a>
+    <a href='https://www.youtube.com/@luvidartevidros7291' target='_blank' style='color: #ff0000; text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.3s ease;'>
+        YouTube
+    </a>
+    <a href='https://wa.me/5511930119335?text=Olá! Gostaria de informações sobre os produtos Luvidarte' target='_blank' style='color: #25D366; text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.3s ease;'>
+        WhatsApp
+    </a>
+</div>
+""", unsafe_allow_html=True)
+
+# Contatos do rodapé
+st.markdown("""
+<div style='text-align: center; font-size: 13px; color: #555; margin: 10px 0;'>
+    📞 Fixo: (11) 4676-9000 | 💬 WhatsApp: (11) 93011-9335 | ✉️ sac@luvidarte.com.br
+</div>
+""", unsafe_allow_html=True)
+
+# Copyright com ano 2026
+st.markdown(f"""
+<div style='text-align: center; font-size: 12px; color: #666; padding: 15px 0 10px 0; border-top: 1px solid #E0E0E0; margin-top: 20px;'>
+    © 2026 Luvidarte - Canal exclusivo para empresas
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================
-# WHATSAPP FLUTUANTE
+# WHATSAPP FLUTUANTE (reposicionado e com link correto)
 # ============================================
 st.markdown("""
 <style>
 .whatsapp-float {
     position: fixed;
-    top: 80px;
+    bottom: 80px;
     right: 20px;
     background-color: #25D366;
     color: white;
@@ -1017,9 +1048,9 @@ st.markdown("""
 }
 </style>
 <div class="whatsapp-float">
-    <a href="https://wa.me/551146769000?text=Olá! Gostaria de informações sobre os produtos Luvidarte" target="_blank">
+    <a href="https://wa.me/5511930119335?text=Olá! Gostaria de informações sobre os produtos Luvidarte" target="_blank">
         <span>💬</span>
-        <span>WhatsApp</span>
+        <span>WhatsApp (11) 93011-9335</span>
     </a>
 </div>
 """, unsafe_allow_html=True)
